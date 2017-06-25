@@ -1,59 +1,155 @@
-from UltimateGuitarInteractor import UltimateGuitarInteractor
-import sys
 import logging
+import os
+import sys
+import traceback
+
+from getopt import getopt, GetoptError
+from urllib.error import URLError
+
+from UltimateGuitarInteractor import UltimateGuitarInteractor
+
+DEFAULT_LOG_LEVEL = logging.WARNING
+DEFAULT_IMPORT_FILE_NAME = "links.txt"
+DEFAULT_EXPORT_DIRECTORY_NAME = "ugtg_output"
+LOGGER_NAME = 'logger'
 
 
 def main():
-    # example command line call:
-    # python ugtg.py [import file] [export location] [silent]
-    import_file_name = sys.argv[1]  # sys.argv[0] is the name of the script, sys.argv[1] is the first argument
-    export_location_name = sys.argv[2]
-    run_silent = sys.argv[3] == 1
+    # configure logger
+    logger_name = LOGGER_NAME
+    logger = configure_logger(DEFAULT_LOG_LEVEL, logger_name)
 
-    logger_name = 'logger'
-    logger = configure_logger(run_silent, logger_name)
+    # get arguments from command line, else use defaults
+    export_directory, import_file, log_level = get_arguments(logger_name, DEFAULT_LOG_LEVEL)
 
-    logger.info("Beginning operation. Import ")
+    set_level(log_level, logger_name)
 
-    links = get_links(import_file_name, logger_name)  # TODO: test. need to modify file name as it comes in?
+    logger.info("Reading links from {0}".format(import_file))
+    links = get_links(import_file, logger_name)
+    logger.info("Found {0} links.".format(str(len(links))))
 
     for link in links:
         logger.info("Getting chords from {0}".format(link))  # TODO: make hyperlink
-        ugint = UltimateGuitarInteractor(link, export_location_name, logger_name)
-        success = ugint.run()
-        if success:
-            logger.info("Got chords for {0}".format(ugint.get_title_and_artist()))
+        ugint = UltimateGuitarInteractor(link, export_directory, logger_name)
+        try:
+            success = ugint.run()
+            if success:
+                logger.info("Got chords for {0}".format(ugint.get_title_and_artist_string()))
+            else:
+                logger.warning("Failed to get chords from {0}.".format(link))
+        except URLError:
+            logger.error(traceback.format_exc())
+            logger.error("URLError: linK: {0}".format(link))
+
+    logger.info("Done. Files exported to {0}".format(export_directory))
+
+
+def get_arguments(logger_name: str, default_log_level: int) -> [str, str, int]:
+    logger = logging.getLogger(logger_name)
+    export_directory = ""
+    import_file = ""
+    log_level = default_log_level
+
+    try:
+        opts, args = getopt(sys.argv[1:], "hvdsi:o:")
+    except GetoptError:
+        display_help()
+        sys.exit(1)
+    for opt, arg in opts:
+        if opt == '-h':
+            display_help()
+            sys.exit(0)
+        elif opt == '-s':  # silent
+            log_level = logging.CRITICAL
+        elif opt == '-v':  # verbose
+            log_level = logging.INFO
+        elif opt == '-d':  # debug
+            log_level = logging.DEBUG
+        elif opt == '-i':
+            import_file = arg
+        elif opt == '-o':
+            export_directory = arg
+
+    opts_used = [row[0] for row in opts]
+
+    # attempt default for input file
+    if '-i' not in opts_used:
+        # no input file provided, default file exists
+        if os.path.exists(DEFAULT_IMPORT_FILE_NAME):
+            print("No input file specified. Using {0} found in working directory {1} \n".format(DEFAULT_IMPORT_FILE_NAME, os.getcwd()))
+            import_file = DEFAULT_IMPORT_FILE_NAME
+        # no input file provided, default file doesn't exist. exit
         else:
-            logger.warning("Failed to get chords.")
+            logger.critical("No input file specified. Default file {0} not found in {1}".format(DEFAULT_IMPORT_FILE_NAME, os.getcwd()))
+            logger.critical("Exiting.")
+            sys.exit(1)
 
-    logger.info("Done. Files exported to {0}".format(export_location_name))
+    # attempt default for output directory
+    if '-o' not in opts_used:
+        # directory doesn't exist yet, create it
+        if not os.path.exists(DEFAULT_EXPORT_DIRECTORY_NAME):
+            print("No output location specified. Creating {0} in working directory {1} \n".format(DEFAULT_EXPORT_DIRECTORY_NAME, os.getcwd()))
+            os.makedirs(DEFAULT_EXPORT_DIRECTORY_NAME)
+            export_directory = DEFAULT_EXPORT_DIRECTORY_NAME
+        # try suffixes if the directory already exists
+        else:
+            path_suffix = 0
+            while os.path.exists("{0}_{1}".format(DEFAULT_EXPORT_DIRECTORY_NAME, str(path_suffix))):
+                path_suffix += 1
+            print("No output location specified. Creating {0}_{1} in working directory {2} \n".format(DEFAULT_EXPORT_DIRECTORY_NAME, path_suffix, os.getcwd()))
+            os.makedirs("{0}_{1}".format(DEFAULT_EXPORT_DIRECTORY_NAME, str(path_suffix)))
+            export_directory = "{0}_{1}".format(DEFAULT_EXPORT_DIRECTORY_NAME, str(path_suffix))
+
+    assert export_directory != ""
+    assert import_file != ""
+
+    return export_directory, import_file, log_level
 
 
-def configure_logger(run_silent, logger_name):
+def configure_logger(level: int, logger_name: str) -> int:
     logger = logging.getLogger(logger_name)  # can use more descriptive name if needed later
     ch = logging.StreamHandler()
-    if run_silent:
-        ch.setLevel(logging.WARNING)
-    else:
-        ch.setLevel(logging.INFO)
+    ch.setLevel(logging.NOTSET)
     logger.addHandler(ch)
+    set_level(level, logger_name)
     return logger
 
 
-def get_links(file_name, logger_name):
+def set_level(level: int, logger_name: str) -> None:
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(level)
+
+
+def get_links(file_name: str, logger_name: str) -> list:
     logger = logging.getLogger(logger_name)
     if not file_name.endswith('.txt'):
-        logger.severe("{0} is the incorrect file type. Exiting.".format(file_name))
+        logger.critical("{0} is the incorrect file type. Exiting.".format(file_name))
         sys.exit(1)
 
     try:
         file = open(file_name)
         links = list(file)
     except FileNotFoundError:
-        logger.severe("{0} is not a valid file. Exiting.".format(file_name))
+        logger.critical(traceback.format_exc())
+        logger.critical("{0} is not a valid file. Exiting.".format(file_name))
         sys.exit(1)
 
-    return links  # TODO: test. need to trim whitespace, etc.?
+    for i in range(len(links)):
+        links[i] = links[i].replace("\n", "")
+
+    return links
+
+
+def display_help() -> None:
+    print("Use:")
+    print("python ugtg.py -i [input .txt file] -o [output directory]")
+    print("-v for verbose output; -d for very verbose, debug-level output; -s for silence")
+    print("python -h to show this help message")
+    print("------------------------------------------------------------------------------------")
+    print("Default values:")
+    print("If no input file is provided, ugtg will default to links.txt in the working directory if it exists.")
+    print("If no output directory is provided, output/ will be created in the working directory.")
+    print("Defaults to silence.")
 
 
 if __name__ == '__main__':
