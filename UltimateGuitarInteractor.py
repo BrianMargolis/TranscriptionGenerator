@@ -7,6 +7,7 @@ class UltimateGuitarInteractor:
     main_link = ""
     main_html = ""
     main_header = ""
+
     print_link = ""
     print_html = ""
 
@@ -21,46 +22,44 @@ class UltimateGuitarInteractor:
         self.main_link = link
 
     def run(self):
-        """
-        Runs a full execution cycle on the object.
+        """Run a full execution cycle."""
+        self.get_main_html()
+        self.get_print_link()
+        self.get_print_html()
+        self.get_metadata()
+        self.get_lyrics()
+        self.export_tex_file()
 
-        :return: void
-        """
-        self.parse_main_link()
-        self.parse_for_lyrics()
-        self.export_to_tex_file()
-
-    def parse_main_link(self):
-        """
-        Navigates to the link specified on object creation and parses the HTML for the:
-        title
-        artist
-        original transcriber username
-        capo #
-        print link (the link to the print context of the page)
-
-        :return: void
-        """
+    def get_main_html(self):
+        """Navigate to the main link specified on object creation and gets the HTML."""
         context = ssl._create_unverified_context()
         website = url.urlopen(self.main_link, context=context)
         self.main_html = website.read().decode("utf-8")
         self.main_header = website.info()
+        # TODO: generate print link and get HTML
 
-    def parse_for_lyrics(self):
-        """
-        Navigates to the print link and parses it for lyrics.
+    def get_print_html(self):
+        """Navigate to the print link specified on object creation and gets the HTML."""
+        context = ssl._create_unverified_context()
+        website = url.urlopen(self.print_link, context=context)
+        self.print_html = website.read().decode("utf-8")
 
-        :return: void
-        """
+    def get_metadata(self):
+        """Parse the main HTML for the song title and artist, original transcriber username, and capo #."""
+        raise NotImplementedError
+
+    def get_print_link(self):
+        """Parse the main HTML for the print link."""
+        raise NotImplementedError
+
+    def get_lyrics(self):
+        """Navigate to the print link and parse it for lyrics."""
         p = Parser()
-        p.feed(self.main_html)
+        p.feed(self.print_html)
+        # TODO: parse for lyrics
 
-    def export_to_tex_file(self):
-        """
-        Creates a .tex file holding the lyrics.
-
-        :return: void
-        """
+    def export_tex_file(self):
+        """Create a .tex file holding the lyrics."""
         file_name = "{0}__{1}.tex".format(self.artist.lower().replace(" ", "_"), self.title.replace(" ", "_"))
         with open(file_name, "w'") as file:
             file.write(self.lyrics)
