@@ -5,6 +5,7 @@ import sys
 import traceback
 
 from getopt import getopt, GetoptError
+from operator import add
 from urllib.error import URLError
 
 from HTMLParseError import HTMLParseError
@@ -30,22 +31,26 @@ def main():
     links = get_links(import_file, logger_name)
     logger.info("Found {0} links.".format(str(len(links))))
 
+    successes = [0, 0, 0, 0]
     for link in links:
         logger.info("Getting chords from {0}".format(link))  # TODO: make hyperlink
         ugint = UltimateGuitarInteractor(link, export_directory, logger_name)
         try:
             ugint.run()
+            success = ugint.get_success()
+            successes = list(map(add, success, successes))
             logger.info("Got chords for {0}".format(ugint.get_title_and_artist_string()))
         except URLError:
             logger.error(traceback.format_exc())
             logger.error("URLError: link: {0}".format(link))
         except HTMLParseError as e:
             logger.error(traceback.format_exc())
-            if (len(e.args) > 0):
+            if len(e.args) > 0:
                 logger.error("HTMLParseError: {0} link: {1}".format(e.args[0], link))
             else:
                 logger.error("HTMLParseError: link: {0}".format(link))
 
+    logger.debug("Successes: {0}".format(successes))
     logger.info("Done. Files exported to {0}".format(export_directory))
 
 
