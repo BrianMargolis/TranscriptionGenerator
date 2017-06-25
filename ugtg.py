@@ -1,4 +1,5 @@
 import logging
+from logging import Logger
 import os
 import sys
 import traceback
@@ -6,6 +7,7 @@ import traceback
 from getopt import getopt, GetoptError
 from urllib.error import URLError
 
+from HTMLParseError import HTMLParseError
 from UltimateGuitarInteractor import UltimateGuitarInteractor
 
 DEFAULT_LOG_LEVEL = logging.WARNING
@@ -32,14 +34,17 @@ def main():
         logger.info("Getting chords from {0}".format(link))  # TODO: make hyperlink
         ugint = UltimateGuitarInteractor(link, export_directory, logger_name)
         try:
-            success = ugint.run()
-            if success:
-                logger.info("Got chords for {0}".format(ugint.get_title_and_artist_string()))
-            else:
-                logger.warning("Failed to get chords from {0}.".format(link))
+            ugint.run()
+            logger.info("Got chords for {0}".format(ugint.get_title_and_artist_string()))
         except URLError:
             logger.error(traceback.format_exc())
-            logger.error("URLError: linK: {0}".format(link))
+            logger.error("URLError: link: {0}".format(link))
+        except HTMLParseError as e:
+            logger.error(traceback.format_exc())
+            if (len(e.args) > 0):
+                logger.error("HTMLParseError: {0} link: {1}".format(e.args[0], link))
+            else:
+                logger.error("HTMLParseError: link: {0}".format(link))
 
     logger.info("Done. Files exported to {0}".format(export_directory))
 
@@ -106,11 +111,11 @@ def get_arguments(logger_name: str, default_log_level: int) -> [str, str, int]:
     return export_directory, import_file, log_level
 
 
-def configure_logger(level: int, logger_name: str) -> int:
+def configure_logger(level: int, logger_name: str) -> Logger:
     logger = logging.getLogger(logger_name)  # can use more descriptive name if needed later
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.NOTSET)
-    logger.addHandler(ch)
+    # ch = logging.StreamHandler()
+    # ch.setLevel(logging.NOTSET)
+    # logger.addHandler(ch)
     set_level(level, logger_name)
     return logger
 
