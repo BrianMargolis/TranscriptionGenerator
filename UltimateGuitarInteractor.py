@@ -4,6 +4,9 @@ from html.parser import HTMLParser as Parser
 
 
 class UltimateGuitarInteractor:
+    export_location = ""
+    logger_name = ""
+
     main_link = ""
     main_html = ""
     main_header = ""
@@ -18,8 +21,10 @@ class UltimateGuitarInteractor:
 
     lyrics = ""
 
-    def __init__(self, link):
+    def __init__(self, link, export_location, logger_name):
         self.main_link = link
+        self.export_location = export_location
+        self.logger_name = logger_name
 
     def run(self):
         """Run a full execution cycle."""
@@ -60,6 +65,10 @@ class UltimateGuitarInteractor:
 
     def export_tex_file(self):
         """Create a .tex file holding the lyrics."""
+        # TODO: accommodate export_location
         file_name = "{0}__{1}.tex".format(self.artist.lower().replace(" ", "_"), self.title.replace(" ", "_"))
         with open(file_name, "w'") as file:
             file.write(self.lyrics)
+
+    def get_title_and_artist(self):
+        return "{0} by {1}".format(self.title, self.artist)
