@@ -1,19 +1,22 @@
-import ssl
 import logging
-import urllib.request as url
+import ssl
+from urllib import request
+
 from bs4 import BeautifulSoup, Tag
+
 from HTMLParseError import HTMLParseError
+from LyricParser import LyricParser
 
 
 class UltimateGuitarInteractor:
     export_location = ""
     logger = ""
 
-    main_link = ""
+    main_url = ""
     main_html = ""
     main_header = ""
 
-    print_link = ""
+    print_url = ""
     print_html = ""
     print_header = ""
 
@@ -24,14 +27,17 @@ class UltimateGuitarInteractor:
 
     lyrics = ""
 
-    def __init__(self, link, export_location, logger_name):
-        self.main_link = link
+    # testing
+    success = [0, 0, 0, 0]
+
+    def __init__(self, url, export_location, logger_name):
+        self.main_url = url
         self.export_location = export_location
         self.logger = logging.getLogger(logger_name)
 
     def run(self):
         """Run a full execution cycle."""
-        self.main_html, self.main_header = self._get_html_and_header(self.main_link)
+        self.main_html, self.main_header = self._get_html_and_header(self.main_url)
         self.logger.debug("main HTML and main header.")
 
         self.title, self.artist, self.original_transcriber, self.capo = self.get_metadata()
@@ -43,26 +49,20 @@ class UltimateGuitarInteractor:
             self.logger.warning("No original transcriber found.")
         self.logger.debug("capo: {0}".format(str(self.capo)))
 
-        self.print_link = self.get_print_link()
-        self.logger.debug("print link: {0}".format(self.print_link))
+        self.print_url = self.get_print_url()
+        self.logger.debug("print url: {0}".format(self.print_url))
 
-        self.print_html, self.print_header = self._get_html_and_header(self.print_link)
+        self.print_html, self.print_header = self._get_html_and_header(self.print_url)
         self.logger.debug("print HTML and print header.")
 
         self.lyrics = self.get_lyrics()
         self.logger.debug("lyrics.")
-        
+
         self._export_tex_file()
         self.logger.debug("Exported.")
 
-    @staticmethod
-    def _get_html_and_header(link: str) -> [str, str]:
-        logging.debug("Getting HTML and header from {0}".format(link))
-        context = ssl._create_unverified_context()  # TODO: make this less sketchy
-        website = url.urlopen(link, context=context)
-        html = website.read().decode("utf-8")
-        header = website.info()
-        return [html, header]
+        # testing
+        self._set_success()
 
     def get_metadata(self) -> [str, str, str, int]:
         """Parse the main HTML for the song title and artist, original transcriber username, and capo #."""
@@ -93,12 +93,12 @@ class UltimateGuitarInteractor:
 
         return title, artist, original_transcriber, capo
 
-    def get_print_link(self):
-        """Parse the main HTML for the print link."""
+    def get_print_url(self):
+        """Parse the main HTML for the print url."""
         soup = BeautifulSoup(self.main_html, "html.parser")
-        link_code = ""
-        link_code_1 = ""
-        link_code_2 = ""
+        url_code = ""
+        url_code_1 = ""
+        url_code_2 = ""
 
         # method 1
         parent_candidates = soup.findAll('div', attrs={"class": "adv-sms-fixed--footer"})
@@ -110,25 +110,39 @@ class UltimateGuitarInteractor:
             if type(child) == Tag:
                 attrs = child.attrs
                 if 'name' in attrs and 'value' in attrs and attrs['name'] == 'id':
-                    link_code_1 = attrs['value']
+                    url_code_1 = attrs['value']
 
         # method 2
         id_candidates = soup.findAll('input', attrs={"name": "id"})
         if len(id_candidates) > 1:
             raise IOError
         id = id_candidates[0]
-        link_code_2 = id.attrs['value']
+        url_code_2 = id.attrs['value']
 
-        if link_code_1 == link_code_2 and link_code_1 != "":
-            link_code = link_code_1
+        if url_code_1 == url_code_2 and url_code_1 != "":
+            url_code = url_code_1
         else:
-            raise HTMLParseError("Error getting the print link")
+            raise HTMLParseError("Error getting the print url")
 
-        return "https://tabs.ultimate-guitar.com/print/{0}?simplified=0".format(link_code)
+        return "https://tabs.ultimate-guitar.com/print/{0}?simplified=0".format(url_code)
 
     def get_lyrics(self):
-        """Navigate to the print link and parse it for lyrics."""
-        raise NotImplementedError
+        """Parse the print html for lyrics."""
+        lp = LyricParser(self.print_html)
+        return lp.get_lyrics()
+
+    def get_title_and_artist_string(self):
+        """Get a human-readable string containing the title and artist."""
+        return "{0} by {1}".format(self.title, self.artist)
+
+    @staticmethod
+    def _get_html_and_header(url: str) -> [str, str]:
+        logging.debug("Getting HTML and header from {0}".format(url))
+        context = ssl._create_unverified_context()  # TODO: make this less sketchy
+        website = request.urlopen(url, context=context)
+        html = website.read().decode("utf-8")
+        header = website.info()
+        return [html, header]
 
     def _export_tex_file(self):
         """Create a .tex file holding the lyrics."""
@@ -143,5 +157,13 @@ class UltimateGuitarInteractor:
         with open(file_name, 'w') as file:
             file.write(self.lyrics)
 
-    def get_title_and_artist_string(self):
-        return "{0} by {1}".format(self.title, self.artist)
+    # testing
+    def _set_success(self):
+        self.success[0] = self.title != ""
+        self.success[1] = self.artist != ""
+        self.success[2] = self.original_transcriber != ""
+        self.success[3] = self.capo > 0
+
+    # testing
+    def get_success(self):
+        return self.success
