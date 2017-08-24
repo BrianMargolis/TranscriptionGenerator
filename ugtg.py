@@ -10,6 +10,7 @@ from urllib.error import URLError
 
 from HTMLParseError import HTMLParseError
 from UltimateGuitarInteractor import UltimateGuitarInteractor
+from UltimateGuitarLink import UltimateGuitarLink
 
 DEFAULT_LOG_LEVEL = logging.WARNING
 DEFAULT_IMPORT_FILE_NAME = "links.txt"
@@ -33,7 +34,7 @@ def main():
 
     successes = [0, 0, 0, 0]
     for link in links:
-        logger.info("Getting chords from {0}".format(link))  # TODO: make hyperlink
+        logger.info("Getting chords from {0}".format(link.get_link()))  # TODO: make hyperlink
         ugint = UltimateGuitarInteractor(link, export_directory, logger_name)
         try:
             ugint.run()
@@ -42,16 +43,16 @@ def main():
             logger.info("Got chords for {0}".format(ugint.get_title_and_artist_string()))
         except URLError:
             logger.error(traceback.format_exc())
-            logger.error("URLError: link: {0}".format(link))
+            logger.error("URLError: link: {0}".format(link.get_link()))
         except HTMLParseError as e:
             logger.error(traceback.format_exc())
             if len(e.args) > 0:
-                logger.error("HTMLParseError: {0} link: {1}".format(e.args[0], link))
+                logger.error("HTMLParseError: {0} link: {1}".format(e.args[0], link.get_link()))
             else:
-                logger.error("HTMLParseError: link: {0}".format(link))
+                logger.error("HTMLParseError: link: {0}".format(link.get_link()))
 
     logger.debug("Successes: {0}".format(successes))
-    logger.info("Done. Files exported to {0}".format(export_directory))
+    logger.info("Files exported to {0}".format(export_directory))
 
 
 def get_arguments(logger_name: str, default_log_level: int) -> [str, str, int]:
@@ -138,14 +139,24 @@ def get_links(file_name: str, logger_name: str) -> list:
 
     try:
         file = open(file_name)
-        links = list(file)
+        file_lines = list(file)
     except FileNotFoundError:
         logger.critical(traceback.format_exc())
-        logger.critical("{0} is not a valid file. Exiting.".format(file_name))
+        logger.critical("{0} does not exist. Exiting.".format(file_name))
         sys.exit(1)
 
-    for i in range(len(links)):
-        links[i] = links[i].replace("\n", "")
+    file_lines = [line.replace("\n", "") for line in file_lines]
+
+    links = []
+    for line in file_lines:
+        parsed_line = line.split(",")
+        try:
+            transposition = int(parsed_line[1]) if len(parsed_line) > 1 else 0
+        except ValueError:
+            logger.debug("Failed to parse {0}. This link will be processed without transposition.".format(parsed_line[1]))
+            transposition = 0
+
+        links.append(UltimateGuitarLink(parsed_line[0], transposition))
 
     return links
 

@@ -12,7 +12,7 @@ class UltimateGuitarInteractor:
     export_location = ""
     logger = ""
 
-    main_url = ""
+    ultimate_guitar_link = ""
     main_html = ""
     main_header = ""
 
@@ -30,14 +30,14 @@ class UltimateGuitarInteractor:
     # testing
     success = [0, 0, 0, 0]
 
-    def __init__(self, url, export_location, logger_name):
-        self.main_url = url
+    def __init__(self, link, export_location, logger_name):
+        self.ultimate_guitar_link = link
         self.export_location = export_location
         self.logger = logging.getLogger(logger_name)
 
     def run(self):
         """Run a full execution cycle."""
-        self.main_html, self.main_header = self._get_html_and_header(self.main_url)
+        self.main_html, self.main_header = self._get_html_and_header(self.ultimate_guitar_link.get_link())
         self.logger.debug("main HTML and main header.")
 
         self.title, self.artist, self.original_transcriber, self.capo = self.get_metadata()
@@ -66,8 +66,6 @@ class UltimateGuitarInteractor:
 
     def get_metadata(self) -> [str, str, str, int]:
         """Parse the main HTML for the song title and artist, original transcriber username, and capo #."""
-        title = ""
-        artist = ""
         original_transcriber = ""
         capo = 0
 
@@ -124,7 +122,7 @@ class UltimateGuitarInteractor:
         else:
             raise HTMLParseError("Error getting the print url")
 
-        return "https://tabs.ultimate-guitar.com/print/{0}?simplified=0".format(url_code)
+        return "https://tabs.ultimate-guitar.com/print/{0}&simplified=0&transpose={1}".format(url_code, self.ultimate_guitar_link.get_transposition())
 
     def get_lyrics(self):
         """Parse the print html for lyrics."""
@@ -155,8 +153,10 @@ class UltimateGuitarInteractor:
 
         file_name = "{0}{1}__{2}.tex".format(formatted_export_location, formatted_artist, formatted_title)
         with open(file_name, 'w') as file:
-            file.write(self.lyrics)
-
+            try:
+                file.write(self.lyrics)
+            except UnicodeEncodeError:
+                self.logger("Failed to encode {0}.".format(self.get_title_and_artist_string()))
     # testing
     def _set_success(self):
         self.success[0] = self.title != ""
